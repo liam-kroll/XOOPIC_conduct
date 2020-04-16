@@ -1,0 +1,279 @@
+MagLIF
+{
+
+}
+Variables
+{
+
+	liner_num_dens=1e16 //1.23e32 m^-3 for Be liner
+	speed_light = 2.997e8 // m/s
+	plasma_freq = 2*PI*9000*sqrt((2.0e-6)*liner_num_dens)
+	ds=0.005*speed_light/plasma_freq
+	diag=1.0/sqrt(2/(ds*ds))
+	DT=0.3*diag/speed_light //limit based in Courant condition
+
+        liner_thickness = 4.65e-4 //m
+        inner_liner_radius = 2.325e-3 //m
+        wiggle_room = 5.0e-4 //m, just gives some extra room for particles to move
+	np2c_liner=1e5
+	np2c_beam=1e6
+	beam_vel=5e6 // m/s
+	pinch_length = 7.5e-3 //m
+	background_B = 0.1 //tesla
+	I_peak = 100 //Ampere
+	al_cush_len = 5e-4 //m
+	ny_cush_len = 5e-4 //m
+
+	tot_pinch_len=al_cush_len+ny_cush_len+pinch_length
+	tot_pinch_radius=inner_liner_radius+liner_thickness+wiggle_room
+	Jmax = tot_pinch_len/ds //max cells in z
+	Kmax = tot_pinch_radius/ds //max cells in r
+
+}
+Region
+{
+Grid
+{
+	J = Jmax //number of cells in z
+	x1s = 0.0 // lower coordinate in the z direction (m)
+	x1f = pinch_length+ny_cush_len+al_cush_len
+	// upper coordinate in the z direction (m)
+	n1 = 1.0
+	K = Kmax //number of r cells
+	x2s = 0.0 // lower coordinate in the r direction (m)
+	x2f = inner_liner_radius+liner_thickness+wiggle_room // upper coordinate in the r direction (m)
+	n2 = 1.0
+	Rule
+	{
+	 Limit
+	 n1 < 0.25
+	 Fatal -- n1 < 0.25 grid spacing too nonuniform to ensure accuracy
+	}
+	Rule
+	{
+	 Algebra
+	 J * K > 10000
+	 Warning -- J*K >= 10000 may mean memory problems!
+	}
+}
+Control
+{
+	dt = DT //timestep (s)
+	B01 = background_B //uniform B field in z-direction (Tesla)
+
+	ElectrostaticFlag = 0
+	//determines field solver: 0=electromagentic, 1-4=electrostatic,
+	//1=DADI, 2=Conjugate Gradient, 3=GMRES, 4=multigrid,
+	//5=periodic DADI, 6=PETSC
+	Rule
+	{
+	 Limit
+	 dt <= 0.0
+	 Fatal -- time step must be positive
+	}
+}
+Species
+{
+        name = conduc_elec
+        //m = 9.11E-31
+        m = 0.5*1.51e-26
+        q = -1.6e-19
+	collisionModel = 1
+}
+Species
+{
+	name = be_ion
+        m = 0.5*1.51e-26
+        q = 1.6e-19
+	collisionModel = 2
+}
+VarWeightLoad
+{
+	speciesName = conduc_elec
+        x1MinMKS = 0
+        x1MaxMKS = pinch_length+ny_cush_len+al_cush_len
+        x2MinMKS = inner_liner_radius
+        x2MaxMKS = inner_liner_radius+liner_thickness
+        density = liner_num_dens
+        np2c=np2c_liner
+	LoadMethodFlag = 1
+	v1drift=beam_vel
+}
+VarWeightLoad
+{
+	speciesName = be_ion
+        x1MinMKS = 0
+        x1MaxMKS = pinch_length+ny_cush_len+al_cush_len
+        x2MinMKS = inner_liner_radius
+        x2MaxMKS = inner_liner_radius+liner_thickness
+        density = liner_num_dens
+        np2c= np2c_liner
+	LoadMethodFlag = 1
+}
+VarWeightBeamEmitter
+{
+	speciesName = conduc_elec
+	A1 = 0
+	A2 = inner_liner_radius
+	B1 = 0
+	B2 = inner_liner_radius+liner_thickness
+	normal = 1
+	np2c = np2c_beam
+	A= I_peak/2.0
+	C= 0 
+	frequency = 2.5e6 //based on gomez 2018
+	phase = 0.0
+	thetadot = 0
+	tdelay = 0.0
+	trise = 0.0
+	tpulse = 1.0e10*DT
+	tfall = 0.0
+	xtFlag = 0
+	a0 = 1.0
+	a1 = 1.0
+	v1drift = beam_vel
+}
+Conductor
+{
+	Segment //al cushion side1
+	{
+		name = "al_cush_side1"
+		A1 = 0
+		B1 = al_cush_len
+		A2 = inner_liner_radius
+		B2 = inner_liner_radius
+		normal = 1
+	}
+	Segment //al cushion side2
+	{
+		name = "al_cush_side2"
+		A1 = 0
+		B1 = al_cush_len
+		A2 = inner_liner_radius+liner_thickness
+		B2 = inner_liner_radius+liner_thickness
+		normal = -1
+	}
+	Segment //al cushion side3
+	{
+		name = "al_cush_side3"
+		A1 = al_cush_len
+		A2 = inner_liner_radius-liner_thickness
+		B1 = al_cush_len
+		B2 = inner_liner_radius
+		normal = 1
+	}
+	Segment //al cushion side4
+	{
+		name = "al_cush_side4"
+		A1 = 0
+		B1 = al_cush_len
+		A2 = inner_liner_radius-liner_thickness
+		B2 = inner_liner_radius-liner_thickness
+		normal = -1
+	}
+	Segment //al cushion side5
+	{
+		name = "al_cush_side5"
+		A1 = 0
+		B1 = 0 
+		A2 = tot_pinch_radius
+		B2 = 0 
+		normal = 1
+	}
+	Segment //al cushion side6
+	{
+		name = "al_cush_side6"
+		A1 = al_cush_len
+		B1 = al_cush_len
+		A2 = inner_liner_radius+liner_thickness
+		B2 = pinch_length+ny_cush_len+al_cush_len
+		normal = 1
+	}
+}
+Conductor
+{
+	Segment //ny cushion side1
+	{
+		name = "ny_cush_side1"
+		A1 = (pinch_length+ny_cush_len+al_cush_len)
+		B1 = (pinch_length+al_cush_len)
+		A2 = inner_liner_radius
+		B2 = inner_liner_radius
+		normal = 1
+	}
+	Segment //ny cush
+	{
+		name = "ny_cush_side2"
+		A1 = (pinch_length+ny_cush_len+al_cush_len)
+		B1 = (pinch_length+al_cush_len)
+		A2 = inner_liner_radius+liner_thickness
+		B2 = inner_liner_radius+liner_thickness
+		normal = -1
+	}
+	Segment //ny cushion side3
+	{
+		name = "ny_cush_side3"
+		A1 = (pinch_length+al_cush_len)
+		B1 = (pinch_length+al_cush_len)
+		A2 = inner_liner_radius-liner_thickness
+		B2 = inner_liner_radius
+		normal = -1
+	}
+	Segment //ny cushion side4
+	{
+		name = "ny_cush_side4"
+		A1 = (pinch_length+al_cush_len+ny_cush_len)
+		B1 = (pinch_length+al_cush_len)
+		A2 = inner_liner_radius-liner_thickness
+		B2 = inner_liner_radius-liner_thickness
+		normal = -1
+	}
+	Segment //ny cushion side5
+	{
+		name = "ny_cush_side5"
+		A1 = (pinch_length+al_cush_len+ny_cush_len)
+		B1 = (pinch_length+al_cush_len+ny_cush_len)
+		A2 = tot_pinch_radius
+		B2 = 0
+		normal = -1
+	}
+	Segment //ny cushion side6
+	{
+		name = "ny_cush_side6"
+		A1 = (pinch_length+al_cush_len)
+		B1 = (pinch_length+al_cush_len)
+		A2 = inner_liner_radius+liner_thickness
+		B2 = inner_liner_radius+liner_thickness+wiggle_room
+		normal = -1
+	}
+}
+Conductor
+{
+	Segment //outer radius
+	{
+		name = "outer_radius"
+		A1 = 0
+		B1 = pinch_length+ny_cush_len+al_cush_len
+		A2 = inner_liner_radius+liner_thickness+wiggle_room
+		B2 = inner_liner_radius+liner_thickness+wiggle_room
+		normal = -1
+	}
+	Segment //right wall outer
+	{
+		name = "receptor"
+		A1 = pinch_length+al_cush_len+ny_cush_len
+		B1 = pinch_length+al_cush_len+ny_cush_len
+		A2 = inner_liner_radius
+		B2 = inner_liner_radius+liner_thickness
+		normal = -1
+	}
+}
+CylindricalAxis
+{
+	j1 = 0
+	k1 = 0
+	j2 = Jmax
+	k2 = 0
+	normal = 1
+}
+}

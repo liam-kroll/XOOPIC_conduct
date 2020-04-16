@@ -1,0 +1,175 @@
+extend_test
+{
+	This XOOPIC input tests the extension 
+	
+	What done in source code: added new collisionModel cases: "conduct_elec" and "conduct_ion",
+	identified member function where i should confine conduct_elec, moved differentialMove to fields.h,
+	Implemented selective limiting of movement of conduct_elec
+}
+Variables
+{
+
+	num_dens=1.0e19
+	DT=1.0e-14
+	total_x=0.02 //(m)
+	total_y=0.02 //(m)
+	window_view=0.001 //(m) this is how much I will keep for plotting later on
+	circ_rad=window_view/4 //(m)
+	E_not=100000 //(V/m) magnitude of initial external E field from equipotentials
+	x_start = -0.5*total_x+0.5*window_view
+	x_end = 0.5*total_x+0.5*window_view
+	y_start = -0.5*total_y+0.5*window_view
+	y_end = 0.5*total_y+0.5*window_view
+
+	//nominal_grid=window_view/ds
+	nominal_grid=320
+	Kmax = nominal_grid //max cells in y
+	Jmax = nominal_grid //max cells in x
+	a=0.9*(1-(window_view/total_x)) //parameter for non-uniform grid spacing
+	b=0.9*(1-(window_view/total_y)) //parameter for non-uniform grid spacing
+
+}
+Region
+{
+Grid
+{
+	Geometry = 1 //Cartesian geometry
+	J = Jmax //number of cells in x
+	x1s = x_start // lower coordinate in the x direction (m)
+	x1f = x_end
+	dx1=(1.0+a)-(2.0*a)*step((j/Jmax)-0.25)+(2.0*a)*step((j/Jmax)-0.75)
+	n1 = 1.0
+	K = Kmax //number of y cells
+	x2s = y_start // lower coordinate in the y direction (m)
+	x2f = y_end
+	dx2=(1.0+b)-(2.0*b)*step((k/Kmax)-0.25)+(2.0*b)*step((k/Kmax)-0.75)
+	n2 = 1.0
+	Rule
+	{
+	 Limit
+	 n1 < 0.25
+	 Fatal -- n1 < 0.25 grid spacing too nonuniform to ensure accuracy
+	}
+	Rule
+	{
+	 Algebra
+	 J * K > 10000
+	 Warning -- J*K >= 10000 may mean memory problems!
+	}
+}
+Control
+{
+	dt = DT //timestep (s)
+	ElectrostaticFlag = 1
+	//determines field solver: 0=electromagentic, 1-4=electrostatic,
+	//1=DADI, 2=Conjugate Gradient, 3=GMRES, 4=multigrid,
+	//5=periodic DADI, 6=PETSC
+	Rule
+	{
+	 Limit
+	 dt <= 0.0
+	 Fatal -- time step must be positive
+	}
+}
+Species
+{
+        name = conduc_elec
+        m = 9.11E-33
+        q = -1.6e-19
+	collisionModel = 5
+}
+Species
+{
+	name = conduc_ion
+        m = 1.0e-20
+        q = 1.6e-19
+	collisionModel = 6
+}
+Load
+{
+	speciesName = conduc_elec
+        x1MinMKS = 0
+        x1MaxMKS = total_x
+        x2MinMKS = 0
+        x2MaxMKS = total_y
+	analyticF = num_dens*step(circ_rad*circ_rad-(pow(x1-window_view/2.0,2)+pow(x2-window_view/2.0,2)))
+        density = num_dens
+        np2c=5e7
+	LoadMethodFlag = 1
+}
+Load
+{
+	speciesName = conduc_ion
+        x1MinMKS = 0
+        x1MaxMKS = total_x
+        x2MinMKS = 0
+        x2MaxMKS = total_y
+	analyticF = num_dens*step(circ_rad*circ_rad-(pow(x1-window_view/2.0,2)+pow(x2-window_view/2.0,2)))
+        density = num_dens
+        np2c=5e7
+	LoadMethodFlag = 1
+}
+Equipotential
+{
+	xtFlag = 0
+	phase = 90
+	A = -0.5*E_not*total_y
+	a1 = 1 
+	a0 = 0
+	tdelay = 0.0
+	tfall = 0.0
+	trise = 5.0e-11
+	tpulse = 1.0e0
+	Segment //top wall
+	{
+		name = "top_wall"
+		j1 = 0
+		j2 = Jmax
+		k1 = Kmax
+		k2 = Kmax
+		normal = -1
+	}
+}
+Equipotential
+{
+	xtFlag = 0
+	phase = 90
+	A = 0.5*E_not*total_y
+	a1 = 1 
+	a0 = 0
+	tdelay = 0.0
+	tfall = 0.0
+	trise = 5.0e-11
+	tpulse = 1.0e0
+	Segment //bottom wall
+	{
+		name = "bottom_wall"
+		j1 = 0
+		j2 = Jmax
+		k1 = 0
+		k2 = 0
+		normal = 1
+	}
+}
+Dielectric
+{
+	Segment //right wall
+	{
+		name = "right_wall"
+		j1 = Jmax
+		k1 = 0
+		j2 = Jmax
+		k2 = Kmax
+		normal = -1
+	}
+	Segment //left wall
+	{
+		name = "left_wall"
+		j1 = 0
+		k1 = 0
+		j2 = 0
+		k2 = Kmax
+		normal = 1
+	}
+}
+}
